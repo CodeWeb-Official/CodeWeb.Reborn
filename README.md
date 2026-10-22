@@ -25,10 +25,3 @@ CodeWeb supports both:
    "Add file" now uses this approach out of the box.
 
 Open either example in the editor and click **Run** to see it rendered.
-
-# Developers and Owner
-- Owner: Jack Nino
-- Inventor: Tom Dallas
-- Developer of the day: Yuris Kam
-- Developer of the month: Sam Julison
-- Developer of the year: None yet. After CodeWeb's 1st Anniversary.

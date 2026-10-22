@@ -14,6 +14,17 @@
 </head>
 <body>
 
+<div id="loadingScreen">
+  <div class="ls-bg" id="lsBg"></div>
+  <div class="ls-center">
+    <div class="ls-title">CodeWeb</div>
+    <div class="ls-sub">Write. Run. Publish.</div>
+    <div class="ls-now" id="lsNow">Starting…</div>
+    <div class="ls-log" id="lsLog"></div>
+  </div>
+</div>
+<script>if (localStorage.getItem("codeweb_theme") === "snapshot-dark") document.getElementById("loadingScreen").style.display = "flex";</script>
+
 <div class="app">
 
   <!-- Top bar -->
@@ -68,6 +79,10 @@
         <svg viewBox="0 0 24 24" width="16" height="16"><path d="M14 3l7 7-9 9-7 1 1-7 8-8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
         Auto-fix
       </button>
+      <button class="btn btn-ghost" id="dangerCodeBtn" title="DangerCode++ (pattern-based risky-line check)">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3l9 16H3L12 3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 10v4M12 17v.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        DangerCode++
+      </button>
       <button class="btn btn-ghost" id="createExtBtn" title="Create CodeWeb extension">
         <svg viewBox="0 0 24 24" width="16" height="16"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         Create Extension
@@ -88,6 +103,7 @@
 
   <!-- Main workspace -->
   <main class="workspace">
+    <aside id="explorer"></aside>
 
     <!-- Editor pane -->
     <section class="pane editor-pane">
@@ -127,7 +143,8 @@
 
   <footer class="statusbar">
     <span id="statusMsg">Ready.</span>
-    <span class="status-right" id="proStatus">Free plan</span>
+    <span class="made-by">CodeWeb: made by Claude.</span>
+    <span class="status-right"><button class="link-btn" id="changelogBtn">Changelog</button> <span id="proStatus">Free plan</span></span>
   </footer>
 </div>
 
@@ -275,6 +292,14 @@
           </div>
           <p class="hint">CodeWeb isn't actually reading a light/dark setting from your Google account — there's no real Google sign-in behind the demo login. "Auto" instead follows your browser/OS light-or-dark preference, which is what most signed-in apps go by anyway. Pick Light or Dark here to override it.</p>
 
+          <label class="field-label">Custom themes</label>
+          <div class="theme-row wrap">
+            <button class="theme-option" data-theme="adv-dark">5.6 Advanced: Dark</button>
+            <button class="theme-option" data-theme="adv-light">5.6 Advanced: Light</button>
+            <button class="theme-option" data-theme="snapshot-dark">5.7 Snapshot: Dark (Feature-Free)</button>
+            <button class="theme-option" data-theme="neovex-dark" disabled>NeoVex Dark (Locked)</button>
+          </div>
+
           <label class="field-label">Account info</label>
           <div class="account-info" id="accountInfoBox"></div>
         </div>
@@ -400,6 +425,8 @@
     <label class="field-label">Export</label>
     <p class="hint">Downloads everything currently open as codeweb-projects.zip — a codeweb-id-XXXXXXXX folder with your files, plus a README.</p>
     <button class="btn btn-accent auth-submit" id="exportProjectBtn">Download codeweb-projects.zip</button>
+    <button class="btn btn-ghost auth-submit" id="exportSb3Btn">Export open file as .sb3 (Scratch)</button>
+    <button class="btn btn-ghost auth-submit" id="exportExeBtn">Export open file as EXE build kit</button>
 
     <label class="field-label" style="margin-top:18px;">Import</label>
     <label class="upload-drop upload-drop-compact" id="projectDropLabel">
@@ -434,7 +461,7 @@
     <ul class="promo-list">
       <li><strong>LEVELBOOST</strong> — jump your level to "Awesome Skill"</li>
       <li><strong>67ISTRASH</strong> — jump your level to "Good Skill"</li>
-      <li><strong>OURCHANNEL</strong> — opens the @EmpressoReal YouTube channel</li>
+      <li><strong>OURCHANNEL</strong> — opens the @EmpressoYT YouTube channel</li>
       <li><strong>YOUARESOLUCKY</strong> — a surprise in-app reward</li>
       <li><strong>SHARPMINDED</strong> — unlocks C# as a file type</li>
       <li><strong>LESSISMORE</strong> — unlocks Less as a file type</li>
@@ -494,6 +521,50 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" id="closeExtDetail">Close</button>
       <button class="btn btn-accent" id="installExtBtn">Install</button>
+    </div>
+  </div>
+</div>
+
+<!-- Changelog -->
+<div class="modal-overlay" id="changelogOverlay">
+  <div class="modal modal-wide tutorial-modal" role="dialog" aria-modal="true">
+    <div class="tutorial-head">
+      <div><h2>Changelog</h2><p class="modal-sub" id="changelogVersion"></p></div>
+      <button class="chrome-close" id="closeChangelog">×</button>
+    </div>
+    <div class="changelog">
+      <h3>5.6.1</h3>
+      <ul>
+        <li>Editor mode when CodeWeb is shown inside a desktop-app frame (explorer, flat bar, blue status bar)</li>
+        <li>New formats: Scratch .sb3, MSIX manifest, and EXE (C# source, unlocked by BotScan)</li>
+        <li>BotScan human check from day 2, and DangerCode++ risky-line check</li>
+        <li>OURCHANNEL now opens @EmpressoYT</li>
+      </ul>
+      <h3>5.6.0</h3>
+      <ul>
+        <li>Changelog button and version label in the footer</li>
+        <li>Custom themes in Settings: 5.6 Advanced Dark, 5.6 Advanced Light, 5.7 Snapshot Dark (with a purple loading screen)</li>
+        <li>NeoVex Dark added as a locked theme</li>
+        <li>Longer, clearer warning in the browser console about pasting code</li>
+      </ul>
+      <h3>5.5.0</h3>
+      <ul>
+        <li>Auto-fix, CodeWeb Extensions (create and browse), and new languages: Python, C#, Less, Rust, TypeScript, PHP, SQL</li>
+        <li>Promo Codes page, project export/import as .zip, CodeWeb Agent</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- BotScan -->
+<div class="modal-overlay" id="botscanOverlay">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2>Verify you're not a bot</h2>
+    <p class="modal-sub" id="botscanText"></p>
+    <div id="botscanBox" class="botscan-box"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="botscanLater">Not now</button>
+      <button class="btn btn-accent" id="botscanStart">Start BotScan</button>
     </div>
   </div>
 </div>

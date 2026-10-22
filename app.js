@@ -35,13 +35,20 @@
      file, per the versioning scheme requested (…5.00, 6.00,
      7.00, …).
   --------------------------------------------------------- */
-  const CODEWEB_VERSION = "1.00";
+  const CODEWEB_VERSION = "5.6.1";
   console.log(`💫 The only way to use a editor. Version: ${CODEWEB_VERSION}`);
   console.log("%cStop!", "color:#ff5d5d; font-size:46px; font-weight:800;");
-  console.log(
-    "%cOnly paste code here if you understand exactly what it does. Code pasted from someone else — even code that looks harmless — can act on your account or your published sites. If you want help writing code, use CodeWeb Agent instead of pasting scripts from strangers.",
-    "font-size:14px; line-height:1.5;"
-  );
+  console.log("%cDo not paste code here unless you wrote it or fully understand it.", "font-size:16px; font-weight:700;");
+  [
+    "This console runs anything you give it with the same power as CodeWeb itself. A pasted script can:",
+    "  • publish inappropriate projects from your account, or delete the ones you have",
+    "  • change your profile name, picture and level",
+    "  • read your saved CodeWeb Agent API key and send it to someone else, who can then spend your credits",
+    "  • swap your exported projects and extensions for harmful ones",
+    "  • tamper with promo codes, themes and settings",
+    "Scammers often say \"paste this to unlock a free feature, free credits or a free level.\" CodeWeb will never ask you to paste anything here, and real promo codes only go in the Promo Codes page.",
+    "CodeWeb can't see or block what you paste, so the only protection is you. If you want help with code, use CodeWeb Agent or Auto-fix instead.",
+  ].forEach(t => console.log("%c" + t, "font-size:13px; line-height:1.6;"));
 
   /* ---------------------------------------------------------
      Icons (inline SVG — no emoji anywhere in this app)
@@ -74,7 +81,12 @@
 
   // Types needing a promo code in Add File. Rust also needs "JavaScript
   // mastery" — here, simply proof a JS file was ever created.
+  ICONS.sb3 = `<svg viewBox="0 0 24 24" width="14" height="14"><text x="0" y="17" font-family="sans-serif" font-size="9" font-weight="800" fill="currentColor">Sb3</text></svg>`;
+  ICONS.msix = `<svg viewBox="0 0 24 24" width="14" height="14"><text x="0" y="17" font-family="sans-serif" font-size="9" font-weight="800" fill="currentColor">Msx</text></svg>`;
+  ICONS.exe = `<svg viewBox="0 0 24 24" width="14" height="14"><text x="0" y="17" font-family="sans-serif" font-size="9" font-weight="800" fill="currentColor">Exe</text></svg>`;
+
   const LOCKED_TYPES = {
+    exe: "codeweb_botscan_passed",
     csharp: "codeweb_csharp_unlocked", less: "codeweb_less_unlocked",
     rust: "codeweb_rust_unlocked", sql: "codeweb_sql_unlocked",
   };
@@ -93,6 +105,9 @@
     typescript: { label: "TypeScript", ext: "ts" },
     php: { label: "PHP", ext: "php" },
     sql: { label: "SQL", ext: "sql" },
+    sb3: { label: "Scratch (.sb3)", ext: "sb3" },
+    msix: { label: "MSIX manifest", ext: "xml" },
+    exe: { label: "EXE (C# source)", ext: "cs" },
   };
 
   const TEMPLATES = {
@@ -109,6 +124,19 @@
     typescript: `// Checked, not compiled or run.\nfunction greet(name: string): string {\n  return "Hello, " + name;\n}\n`,
     php: `<?php\n// Checked, not executed.\necho "Hello from PHP";\n`,
     sql: `-- Checked, not run against a real database.\nSELECT * FROM sites WHERE published = true;\n`,
+    sb3: `{"targets":[{"isStage":true,"name":"Stage","variables":{},"lists":{},"broadcasts":{},"blocks":{},"comments":{},"currentCostume":0,"costumes":[{"assetId":"MD5","name":"backdrop1","md5ext":"MD5.svg","dataFormat":"svg","rotationCenterX":1,"rotationCenterY":1}],"sounds":[],"volume":100,"layerOrder":0,"tempo":60,"videoTransparency":50,"videoState":"on","textToSpeechLanguage":null}],"monitors":[],"extensions":[],"meta":{"semver":"3.0.0","vm":"0.2.0","agent":"CodeWeb"}}\n`.replace(/MD5/g, "56adf1c618eac519465763af2d89aede"),
+    msix: `<?xml version="1.0" encoding="utf-8"?>
+<!-- CodeWeb writes the manifest. Build the real .msix with MakeAppx.exe from the Windows SDK; the Microsoft Store signs it on submission. -->
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap rescap">
+  <Identity Name="YourName.CodeWebApp" Publisher="CN=YourPublisherId" Version="1.0.0.0" />
+  <Properties><DisplayName>CodeWeb App</DisplayName><PublisherDisplayName>Your Name</PublisherDisplayName><Logo>Assets\\StoreLogo.png</Logo></Properties>
+  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" /></Dependencies>
+  <Resources><Resource Language="en-us" /></Resources>
+  <Applications><Application Id="App" Executable="CodeWebApp.exe" EntryPoint="Windows.FullTrustApplication"><uap:VisualElements DisplayName="CodeWeb App" Description="CodeWeb" BackgroundColor="transparent" Square150x150Logo="Assets\\Square150x150Logo.png" Square44x44Logo="Assets\\Square44x44Logo.png" /></Application></Applications>
+  <Capabilities><rescap:Capability Name="runFullTrust" /></Capabilities>
+</Package>
+`,
+    exe: `using System;\nclass Program {\n    static void Main() {\n        Console.WriteLine("Hello from CodeWeb");\n        Console.ReadKey();\n    }\n}\n`,
   };
 
   /* ---------------------------------------------------------
@@ -186,6 +214,7 @@
      Rendering: file tabs
   --------------------------------------------------------- */
   function renderTabs() {
+    renderExplorer();
     fileTabsEl.innerHTML = "";
     files.forEach(f => {
       const tab = document.createElement("button");
@@ -296,7 +325,13 @@
       messages.push({ type: "err", text: `Line ${lineIdx + 1}: ${text}` });
     };
 
-    if (file.type === "json") {
+    if (file.type === "msix") {
+      const err = new DOMParser().parseFromString(file.content, "application/xml").querySelector("parsererror");
+      if (err) markBad(0, "XML isn't well-formed: " + err.textContent.split("\n")[0]);
+      else messages.push({ type: "ok", text: "Well-formed XML. Package it with MakeAppx.exe to get a real .msix." });
+      return { lineStatus, messages };
+    }
+    if (file.type === "json" || file.type === "sb3") {
       try {
         JSON.parse(content);
         messages.push({ type: "ok", text: "Valid JSON — no issues found." });
@@ -375,7 +410,7 @@
   }
 
   function stripLineComment(line, type) {
-    if (["js", "cpp", "csharp", "less", "rust", "typescript", "php"].includes(type)) return line.replace(/\/\/.*$/, "");
+    if (["js", "cpp", "csharp", "less", "rust", "typescript", "php", "exe"].includes(type)) return line.replace(/\/\/.*$/, "");
     if (type === "lua") return line.replace(/--(?!\[\[).*$/, "");
     if (type === "sql") return line.replace(/--.*$/, "");
     if (type === "css") return line.replace(/\/\*.*?\*\//g, "");
@@ -828,6 +863,7 @@
     renderAuthChip();
     closeAuth();
     toast(`Signed in as ${name} (demo — ${method}).`);
+    maybeBotScan();
     if (pendingAction) { const fn = pendingAction; pendingAction = null; fn(); }
   }
 
@@ -1074,17 +1110,23 @@
   function systemPrefersLight() {
     return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
   }
+  const CUSTOM_THEMES = ["adv-dark", "adv-light", "snapshot-dark"], LOCKED_THEMES = ["neovex-dark"];
   function applyTheme(mode) {
-    const isLight = mode === "light" ? true : mode === "dark" ? false : systemPrefersLight();
+    if (LOCKED_THEMES.includes(mode)) mode = themeMode = "dark";
+    const custom = CUSTOM_THEMES.includes(mode);
+    const isLight = !custom && (mode === "light" ? true : mode === "dark" ? false : systemPrefersLight());
     document.body.classList.toggle("theme-light", isLight);
+    CUSTOM_THEMES.forEach(t => document.body.classList.toggle("theme-" + t, t === mode));
     document.querySelectorAll(".theme-option").forEach(btn => {
       btn.classList.toggle("is-active", btn.dataset.theme === mode);
     });
   }
   function setThemeMode(mode) {
+    if (LOCKED_THEMES.includes(mode)) { toast("NeoVex Dark is locked for now."); return; }
     themeMode = mode;
     localStorage.setItem("codeweb_theme", mode);
     applyTheme(mode);
+    if (mode === "snapshot-dark") runLoadingScreen();
   }
   if (window.matchMedia) {
     window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
@@ -1628,12 +1670,16 @@
       return 'Congrats! You are advancing to the level of "Good Skill"!';
     },
     OURCHANNEL: () => {
-      window.open("https://www.youtube.com/@EmpressoReal", "_blank", "noopener");
-      return "Opening the @EmpressoReal channel in a new tab...";
+      window.open("https://www.youtube.com/@EmpressoYT", "_blank", "noopener");
+      return "Opening the @EmpressoYT channel in a new tab...";
     },
     YOUARESOLUCKY: () => {
       localStorage.setItem("codeweb_lucky_unlocked", "1");
       return "Congrats! You've unlocked an exclusive crown icon for your published sites!";
+    },
+    CODEWEB: () => {
+      window.open("https://youtube.com/CodeWebCorporationLimited", "_blank", "noopener");
+      return "Opening the CodeWeb channel in a new tab...";
     },
     SHARPMINDED: () => { localStorage.setItem("codeweb_csharp_unlocked", "1"); return "Congrats! C# is now available in Add File."; },
     LESSISMORE: () => { localStorage.setItem("codeweb_less_unlocked", "1"); return "Congrats! Less is now available in Add File."; },
@@ -1925,4 +1971,182 @@ The folders are initialized with unique IDs, and they correspond to the project 
     if (currentExtList.length === 0) { toast("No extensions to pick from."); return; }
     openExtDetail(currentExtList[Math.floor(Math.random() * currentExtList.length)]);
   });
+
+  /* ===========================================================
+     5.6.0 — changelog button + 5.7 Snapshot loading screen.
+     Each loading step really reads the thing it names; a short
+     pause between steps just keeps the text readable.
+  =========================================================== */
+  el("changelogBtn").textContent = `v${CODEWEB_VERSION} · Changelog`;
+  el("changelogVersion").textContent = `Version ${CODEWEB_VERSION}`;
+  const clOv = el("changelogOverlay");
+  el("changelogBtn").addEventListener("click", () => clOv.classList.add("is-open"));
+  el("closeChangelog").addEventListener("click", () => clOv.classList.remove("is-open"));
+  clOv.addEventListener("click", (e) => { if (e.target === clOv) clOv.classList.remove("is-open"); });
+
+  async function runLoadingScreen() {
+    const box = el("loadingScreen"), now = el("lsNow"), log = el("lsLog");
+    const tokens = ["0", "1", "</>", "{ }", "( )", "=>", "0", "1", "[ ]", ";", "0", "1"];
+    el("lsBg").textContent = Array.from({ length: 1500 }, (_, i) => tokens[i % tokens.length]).join(" ");
+    log.textContent = ""; box.style.opacity = 1; box.style.display = "flex";
+    const step = async (label, fn) => {
+      now.textContent = `Loading ${label}…`;
+      await new Promise(r => setTimeout(r, 250));
+      let detail; try { detail = await fn(); } catch (e) { detail = "unavailable"; }
+      log.textContent += `${label}: ${detail}\n`;
+    };
+    await step("fonts", async () => { if (!document.fonts) return "n/a"; await document.fonts.ready; return "ready"; });
+    await step("your files", () => `${files.length} file(s)`);
+    await step("account", () => currentUser ? `signed in as ${currentUser.name}` : "guest");
+    await step("published sites", () => `${loadSites().length} found`);
+    await step("extensions", () => `${loadExtensions().length} found`);
+    await step("tutorial video", async () => (await getVideoRecord()) ? "found" : "none uploaded");
+    await step("theme", () => "CodeWeb 5.7 Snapshot: Dark");
+    now.textContent = "Done";
+    setTimeout(() => { box.style.opacity = 0; setTimeout(() => { box.style.display = "none"; }, 400); }, 300);
+  }
+  if (themeMode === "snapshot-dark") runLoadingScreen();
+
+  /* ===========================================================
+     Desktop-frame mode: shown as an editor (explorer + flat bar
+     + blue status bar) when the page is inside a frame, a
+     desktop webview (Electron/WebView2/Tauri user agent), or
+     opened with ?desktop=1. A page can't tell a desktop app's
+     frame from any other site's frame, so all framing counts.
+  =========================================================== */
+  let framed = true;
+  try { framed = window.self !== window.top; } catch (e) { /* cross-origin: framed */ }
+  if (framed || /Electron|WebView2|Tauri/i.test(navigator.userAgent) || /[?&]desktop=1/.test(location.search)) {
+    document.body.classList.add("desktop-mode");
+  }
+  function renderExplorer() {
+    if (!document.body.classList.contains("desktop-mode")) return;
+    el("explorer").innerHTML = `<div class="ex-title">EXPLORER</div>` + files.map(f =>
+      `<div class="ex-item${f.id === activeId ? " is-active" : ""}" data-id="${f.id}">${ICONS[f.type]} ${escapeHtml(f.name)}</div>`).join("");
+  }
+  el("explorer").addEventListener("click", (e) => {
+    const item = e.target.closest(".ex-item");
+    if (item) { activeId = item.dataset.id; loadActiveFile(); }
+  });
+  renderExplorer();
+
+  /* ===========================================================
+     Export: .sb3 (a zip with project.json + a blank backdrop) and an
+     EXE build kit (C# source + build.bat using the C# compiler that
+     ships with Windows). CodeWeb can't compile an .exe in a browser,
+     and a real .msix needs MakeAppx.exe, so those are handed off.
+  =========================================================== */
+  const BLANK_SVG = `<svg version="1.1" width="2" height="2" viewBox="-1 -1 2 2" xmlns="http://www.w3.org/2000/svg"></svg>`;
+  async function saveZip(zip, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(await zip.generateAsync({ type: "blob" }));
+    a.download = name; a.click(); URL.revokeObjectURL(a.href);
+    toast(`Downloaded ${name}`);
+  }
+  el("exportSb3Btn").addEventListener("click", async () => {
+    const f = activeFile();
+    if (f.type !== "sb3") { toast("Open a Scratch (.sb3) file first."); return; }
+    try { JSON.parse(f.content); } catch (e) { toast("Fix the JSON first — Run shows the problem."); return; }
+    const zip = new JSZip();
+    zip.file("project.json", f.content);
+    zip.file("56adf1c618eac519465763af2d89aede.svg", BLANK_SVG);
+    await saveZip(zip, f.name.replace(/\.[^.]*$/, "") + ".sb3");
+  });
+  el("exportExeBtn").addEventListener("click", async () => {
+    const f = activeFile();
+    if (f.type !== "exe") { toast("Open an EXE (C# source) file first."); return; }
+    const risky = dangerScan(f.content);
+    if (risky.length && !confirm(`DangerCode++ found ${risky.length} risky line(s). Export anyway?`)) return;
+    const zip = new JSZip();
+    zip.file("Program.cs", f.content);
+    zip.file("build.bat", ["@echo off", 'set "CSC=%WINDIR%\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe"',
+      '"%CSC%" /nologo /out:Program.exe Program.cs', "if errorlevel 1 (echo Build failed) else (echo Built Program.exe)", "pause"].join("\r\n"));
+    await saveZip(zip, "exe-build-kit.zip");
+  });
+
+  /* ===========================================================
+     DangerCode++ — pattern-based. It flags lines that match known
+     risky calls and suggests a safer form, or removal when there
+     isn't one. It is not antivirus and will miss things.
+  =========================================================== */
+  const DANGER = [
+    [/Process\.Start\s*\(/, "Starts another program", "Only launch a fixed, trusted path you control, never a path or arguments from input or downloads."],
+    [/File\.Delete|Directory\.Delete/, "Deletes files", "Limit deletes to your own temp folder, e.g. Path.Combine(Path.GetTempPath(), \"MyApp\", name)."],
+    [/WebClient|DownloadFile|DownloadString|HttpClient/, "Downloads data from the internet", "Use HTTPS to your own domain and never run what you download."],
+    [/Registry(Key)?\b|\breg\s+(add|delete)/i, "Changes the Windows registry", null],
+    [/Assembly\.Load|DynamicMethod|ILGenerator/, "Loads code at runtime", null],
+    [/VirtualAlloc|WriteProcessMemory|CreateRemoteThread|SetWindowsHookEx/, "Process injection or key hooking", null],
+    [/-EncodedCommand|-enc\b|Invoke-Expression|\biex\b|certutil\s+-urlcache|bitsadmin/i, "Hidden command execution or download tool", null],
+    [/format\s+[a-z]:|del\s+\/[sq]|rd\s+\/s|rmdir\s+\/s|\bshutdown\b/i, "Destructive system command", null],
+    [/SpecialFolder\.Startup|CurrentVersion\\Run/i, "Makes itself start with Windows", null],
+  ];
+  function dangerScan(code) {
+    const out = [];
+    code.split("\n").forEach((l, i) => DANGER.forEach(([re, why, fix]) => { if (re.test(l.replace(/\/\/.*$/, ""))) out.push({ line: i, why, fix }); }));
+    return out;
+  }
+  el("dangerCodeBtn").addEventListener("click", () => {
+    const f = activeFile(), found = dangerScan(f.content);
+    const msgs = found.length ? found.map(d => ({ type: "err", text: `Line ${d.line + 1}: ${d.why}. ${d.fix ? "Safer: " + d.fix : "No safe alternative — delete this line."}` }))
+      : [{ type: "ok", text: "DangerCode++ found nothing risky. It is pattern-based and can miss things." }];
+    f.messages = msgs; renderConsole({ messages: msgs }); switchOutputView("console");
+    const removable = found.filter(d => !d.fix);
+    if (removable.length && confirm(`Comment out the ${removable.length} line(s) that have no safe alternative?`)) {
+      const lines = f.content.split("\n");
+      removable.forEach(d => { lines[d.line] = `// REMOVED by DangerCode++: ${d.why}`; });
+      f.content = lines.join("\n"); loadActiveFile(); toast("Risky lines commented out.");
+    }
+  });
+
+  /* ===========================================================
+     BotScan — from day 2 of an account. Straight-line movement
+     signs you out; a pause, some wobble and a slow pace passes.
+     A script that adds fake jitter could still pass, and a person
+     who can't use a mouse, finger or pen in the box can't — so
+     "Not now" always works and only the EXE type depends on it.
+  =========================================================== */
+  const BOTSCAN_SECONDS = 12, botOv = el("botscanOverlay"), botBox = el("botscanBox");
+  let botShown = false;
+  function judgeMouse(p) {
+    if (p.length < 8) return "unclear";
+    const a = p[0], b = p[p.length - 1], len = Math.hypot(b.x - a.x, b.y - a.y);
+    let path = 0, rev = 0, pause = false, maxDev = 0;
+    for (let i = 1; i < p.length; i++) {
+      path += Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y);
+      if (p[i].t - p[i - 1].t >= 1000) pause = true;
+      if (i > 1) {
+        if ((p[i - 1].x - p[i - 2].x) * (p[i].x - p[i - 1].x) < 0) rev++;
+        if ((p[i - 1].y - p[i - 2].y) * (p[i].y - p[i - 1].y) < 0) rev++;
+      }
+    }
+    if (len >= 120) p.forEach(q => { maxDev = Math.max(maxDev, Math.abs((b.x - a.x) * (a.y - q.y) - (a.x - q.x) * (b.y - a.y)) / len); });
+    if (len >= 120 && maxDev <= 4) return "straight";
+    return pause && rev >= 6 && path / (((b.t - a.t) / 1000) || 1) < 1500 ? "human" : "unclear";
+  }
+  function maybeBotScan() {
+    const due = currentUser && localStorage.getItem("codeweb_botscan_passed") !== "1" && Date.now() - currentUser.joinedAt >= 2 * 86400000;
+    if (!due || botShown) return;
+    botShown = true;
+    el("botscanText").textContent = "It's day 2 of your CodeWeb account. Run BotScan so we know you're human.";
+    el("botscanStart").style.display = "inline-flex"; botBox.style.display = "none";
+    botOv.classList.add("is-open");
+  }
+  el("botscanLater").addEventListener("click", () => botOv.classList.remove("is-open"));
+  el("botscanStart").addEventListener("click", () => {
+    const pts = [], text = el("botscanText"); let left = BOTSCAN_SECONDS;
+    el("botscanStart").style.display = "none"; botBox.style.display = "block";
+    const onMove = (e) => pts.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+    botBox.addEventListener("pointermove", onMove);
+    const say = () => { text.textContent = `Move your mouse or finger around inside the box for ${left}s. Pause once, like you normally would.`; };
+    say();
+    const tick = setInterval(() => {
+      if (--left > 0) { say(); return; }
+      clearInterval(tick); botBox.removeEventListener("pointermove", onMove);
+      const verdict = judgeMouse(pts);
+      if (verdict === "human") { localStorage.setItem("codeweb_botscan_passed", "1"); botOv.classList.remove("is-open"); toast("BotScan complete — you're human. EXE files are unlocked."); }
+      else if (verdict === "straight") { currentUser = null; clearUser(); renderAuthChip(); botOv.classList.remove("is-open"); toast("That movement looked automated, so you were signed out."); }
+      else { text.textContent = "We couldn't tell. Try again."; botBox.style.display = "none"; el("botscanStart").style.display = "inline-flex"; }
+    }, 1000);
+  });
+  maybeBotScan();
 })();
